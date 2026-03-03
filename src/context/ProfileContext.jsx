@@ -3,7 +3,7 @@
  */
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
-import { fetchProfile } from '../services/profileService';
+import { fetchProfile, deleteProfile } from '../services/profileService';
 
 const ProfileContext = createContext(null);
 
@@ -31,10 +31,16 @@ export function ProfileProvider({ children }) {
     setProfile(p);
   };
 
+  const resetProfile = async () => {
+    if (!user?.id) return;
+    await deleteProfile(user.id);
+    setProfile(null);
+  };
+
   const hasProfile = !!profile;
 
   return (
-    <ProfileContext.Provider value={{ profile, hasProfile, loading, refreshProfile }}>
+    <ProfileContext.Provider value={{ profile, hasProfile, loading, refreshProfile, resetProfile }}>
       {children}
     </ProfileContext.Provider>
   );

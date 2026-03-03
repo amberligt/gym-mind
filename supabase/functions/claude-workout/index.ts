@@ -145,13 +145,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } }
     );
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders(), "Content-Type": "application/json" } }
-      );
-    }
 
     const body = await req.json();
     const { action, payload } = body;
@@ -187,6 +180,15 @@ Deno.serve(async (req) => {
 
     const rl = rateLimitResult as { allowed?: boolean; error?: string; reset_seconds?: number; limit?: number; remaining?: number };
     if (rl?.allowed === false) {
+      // If the rate-limit function reports that there is no authenticated user,
+      // surface that as a real authentication error instead of a generic 429.
+      if (rl.error === "Not authenticated") {
+        return new Response(
+          JSON.stringify({ error: "Not authenticated" }),
+          { status: 401, headers: { ...corsHeaders(), "Content-Type": "application/json" } }
+        );
+      }
+
       const retryAfter = Math.min(rl.reset_seconds ?? 60, 60);
       return new Response(
         JSON.stringify({

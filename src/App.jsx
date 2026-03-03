@@ -45,7 +45,7 @@ function AppContent() {
     : state.currentExerciseIndex + 1;
   const nextExercise = flatExercises[nextIndex];
 
-  const { profile } = useProfile();
+  const { profile, resetProfile } = useProfile();
 
   return (
     <div className="min-h-full flex flex-col bg-[#F8FAFC]">
@@ -54,6 +54,10 @@ function AppContent() {
           profile={profile}
           onBack={() => dispatch({ type: 'BACK_TO_INPUT' })}
           onRecalculate={() => dispatch({ type: 'BACK_TO_INPUT' })}
+          onResetProfile={async () => {
+            await resetProfile();
+            window.location.reload();
+          }}
         />
       ) : (state.screen === 'input' || state.screen === 'loading') ? (
         <ChatInput

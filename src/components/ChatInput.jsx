@@ -142,6 +142,12 @@ export default function ChatInput({ onGenerate, loading, error, onViewHistory, o
               Profile
             </button>
           )}
+          <button
+            onClick={signOut}
+            className="text-[#64748B] text-xs font-medium min-h-[44px] flex items-center"
+          >
+            Sign out
+          </button>
         </div>
       </div>
     );
@@ -223,6 +229,12 @@ export default function ChatInput({ onGenerate, loading, error, onViewHistory, o
             Profile
           </button>
         )}
+        <button
+          onClick={signOut}
+          className="text-[#64748B] text-xs font-medium min-h-[44px] flex items-center"
+        >
+          Sign out
+        </button>
       </div>
     </div>
   );

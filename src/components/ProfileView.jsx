@@ -3,8 +3,9 @@
  * Whole card tappable. Orange + Blue.
  */
 import PrimaryButton from './ui/PrimaryButton';
+import SecondaryButton from './ui/SecondaryButton';
 
-export default function ProfileView({ profile, onBack, onRecalculate }) {
+export default function ProfileView({ profile, onBack, onRecalculate, onResetProfile }) {
   const p = profile?.profile_json ?? {};
   const items = [
     ['Primary Goal', p.training_goal],
@@ -77,10 +78,19 @@ export default function ProfileView({ profile, onBack, onRecalculate }) {
         </div>
       </div>
 
-      <div className="shrink-0 px-6 pb-[calc(16px+env(safe-area-inset-bottom))] pt-4">
+      <div className="shrink-0 px-6 pb-[calc(16px+env(safe-area-inset-bottom))] pt-4 space-y-3">
         <PrimaryButton onClick={onRecalculate ?? onBack}>
           Recalculate Program
         </PrimaryButton>
+        {onResetProfile && (
+          <SecondaryButton
+            type="button"
+            onClick={onResetProfile}
+            className="w-full"
+          >
+            Reset onboarding (choose AI or guided)
+          </SecondaryButton>
+        )}
       </div>
     </div>
   );

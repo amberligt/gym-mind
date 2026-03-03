@@ -6,6 +6,7 @@ import { parseWorkout } from '../utils/parseWorkout';
 import { supabase } from '../lib/supabase';
 import { getRecentHistory, getWorkouts } from './storageService';
 import { fetchProfile } from './profileService';
+import * as Sentry from '@sentry/react';
 
 const getEdgeUrl = () => {
   const url = import.meta.env.VITE_SUPABASE_URL;
@@ -53,6 +54,10 @@ async function invokeClaudeEdge(action, payload) {
   const json = await res.json();
   if (!res.ok) {
     const msg = json.error || `API error ${res.status}`;
+    Sentry.captureException(new Error(msg), {
+      tags: { area: 'workoutService', action },
+      extra: { status: res.status, payload },
+    });
     if (res.status === 401) {
       throw new Error('Session expired. Please sign out and sign in again.');
     }

@@ -28,3 +28,12 @@ export async function saveProfile(userId, rawText, profileJson) {
     );
   if (error) throw error;
 }
+
+export async function deleteProfile(userId) {
+  if (!userId) return;
+  const { error } = await supabase
+    .from('profiles')
+    .delete()
+    .eq('user_id', userId);
+  if (error) throw error;
+}
