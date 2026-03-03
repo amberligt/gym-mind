@@ -53,12 +53,23 @@ export async function generateWorkout(userInput, userId) {
   ]);
   const profile = profileRow?.profile_json ?? null;
 
-  const { raw } = await invokeClaudeEdge('generate', {
+  const response = await invokeClaudeEdge('generate', {
     userInput,
     history,
     profile,
   });
-  return parseWorkout(raw);
+
+  // New handler returns a parsed workout directly.
+  if (response && response.workout) {
+    return { success: true, workout: response.workout };
+  }
+
+  // Backwards-compat: older handler returns { raw } JSON string.
+  if (response && response.raw) {
+    return parseWorkout(response.raw);
+  }
+
+  return { success: false, error: 'Failed to parse workout. Please try again.' };
 }
 
 export async function analyseWorkoutHistory(currentSession, userId) {
@@ -96,13 +107,24 @@ export async function parseProfile(rawText) {
 }
 
 export async function adjustWorkout(workout, adjustmentInstruction) {
-  const { raw } = await invokeClaudeEdge('adjust', {
+  const response = await invokeClaudeEdge('adjust', {
     workout,
     adjustment: adjustmentInstruction,
   });
-  const result = parseWorkout(raw);
-  if (!result.success) {
-    throw new Error(result.error || 'Invalid workout response');
+
+  // New handler returns a parsed workout directly.
+  if (response && response.workout) {
+    return response.workout;
   }
-  return result.workout;
+
+  // Backwards-compat: older handler returns { raw } JSON string.
+  if (response && response.raw) {
+    const result = parseWorkout(response.raw);
+    if (!result.success) {
+      throw new Error(result.error || 'Invalid workout response');
+    }
+    return result.workout;
+  }
+
+  throw new Error('Invalid workout response');
 }

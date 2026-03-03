@@ -211,6 +211,14 @@ export default function ChatInput({ onGenerate, loading, error, onViewHistory, o
           <PrimaryButton onClick={handleGenerate} loading={loading}>
             Generate Workout
           </PrimaryButton>
+          {loading && (
+            <div className="mt-4 flex items-center gap-2 text-sm text-[#475569]">
+              <span className="inline-block h-2 w-2 rounded-full bg-[#22C55E] animate-pulse" />
+              <span className="font-medium tracking-wide">
+                Generating your workout<span className="animate-pulse">...</span>
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

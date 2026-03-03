@@ -1,7 +1,21 @@
 export function parseWorkout(raw) {
   try {
     const cleaned = raw.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(cleaned);
+
+    let parsed;
+    try {
+      // First, try to parse as-is.
+      parsed = JSON.parse(cleaned);
+    } catch {
+      // Fallback: try to extract the first top-level JSON object.
+      const start = cleaned.indexOf('{');
+      const end = cleaned.lastIndexOf('}');
+      if (start === -1 || end === -1 || end <= start) {
+        throw new Error('No JSON object found');
+      }
+      const slice = cleaned.slice(start, end + 1);
+      parsed = JSON.parse(slice);
+    }
 
     if (!Array.isArray(parsed.blocks)) {
       throw new Error('Missing blocks array');

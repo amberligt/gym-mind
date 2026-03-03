@@ -207,16 +207,28 @@ export default async function handler(req: any, res: any) {
             .map((w: { date: string; title: string; exercises: any[] }) => {
               const date = new Date(w.date).toLocaleDateString();
               const exercises = (w.exercises || [])
-                .map((ex: { name: string; sets: { weight_kg?: number; difficulty?: number; target_reps?: string }[]; reps?: string }) => {
+                .map((ex: { name: string; sets: ExerciseSet[]; reps?: string }) => {
                   const sets = Array.isArray(ex.sets) ? ex.sets : [];
-                  const avgWeight = sets.length > 0
-                    ? (sets.reduce((s: number, set: { weight_kg?: number }) => s + (set.weight_kg || 0), 0) / sets.length).toFixed(1)
-                    : 0;
+                  const avgWeight =
+                    sets.length > 0
+                      ? (
+                          sets.reduce(
+                            (sum: number, set: ExerciseSet) => sum + (set.weight_kg || 0),
+                            0
+                          ) / sets.length
+                        ).toFixed(1)
+                      : '0';
                   const reps = sets[0]?.target_reps ?? ex.reps ?? '—';
-                  const rated = sets.filter((s: { difficulty?: number }) => s.difficulty != null);
-                  const avgRating = rated.length > 0
-                    ? (rated.reduce((s: number, x: { difficulty: number }) => s + x.difficulty, 0) / rated.length).toFixed(0)
-                    : '';
+                  const rated = sets.filter((s) => s.difficulty != null);
+                  const avgRating =
+                    rated.length > 0
+                      ? (
+                          rated.reduce(
+                            (sum: number, s: ExerciseSet) => sum + (s.difficulty ?? 0),
+                            0
+                          ) / rated.length
+                        ).toFixed(0)
+                      : '';
                   const rating = avgRating ? ` (difficulty: ${avgRating}/5)` : '';
                   return `  - ${ex.name}: ${avgWeight}kg × ${sets.length}×${reps}${rating}`;
                 })
