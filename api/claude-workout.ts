@@ -239,7 +239,10 @@ export default async function handler(req: any, res: any) {
           message += `\n\nMy recent workout history (use this to personalize weight suggestions):\n${historyBlock}`;
         }
         const text = await callClaude(systemPrompt, message, 2048);
-        result = { success: true, raw: cleanJson(text) };
+        // Parse on the server so the frontend doesn't need to interpret raw JSON.
+        const cleaned = cleanJson(text);
+        const parsed = JSON.parse(cleaned);
+        result = { success: true, workout: parsed };
         break;
       }
 
