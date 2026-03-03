@@ -8,12 +8,6 @@ import { getRecentHistory, getWorkouts } from './storageService';
 import { fetchProfile } from './profileService';
 import * as Sentry from '@sentry/react';
 
-const getEdgeUrl = () => {
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  if (!url) throw new Error('Missing VITE_SUPABASE_URL');
-  return `${url.replace(/\/$/, '')}/functions/v1/claude-workout`;
-};
-
 async function invokeClaudeEdge(action, payload) {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) {
@@ -23,51 +17,28 @@ async function invokeClaudeEdge(action, payload) {
     throw new Error('Not signed in. Please sign in and try again.');
   }
 
-  // Try to refresh the session before calling the edge function.
-  // If refresh fails, fall back to the existing access token.
-  const { data: { session: freshSession }, error: refreshError } = await supabase.auth.refreshSession();
-  const initialToken = refreshError ? session.access_token : (freshSession?.access_token ?? session.access_token);
+  // Use Supabase Functions client so it attaches the correct headers/JWT.
+  const { data, error } = await supabase.functions.invoke('claude-workout', {
+    body: { action, payload },
+  });
 
-  const callEdge = async (token) => {
-    const res = await fetch(getEdgeUrl(), {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ action, payload }),
-    });
-    return res;
-  };
-
-  let res = await callEdge(initialToken);
-
-  // If we somehow hit a 401, try one more hard refresh + retry before giving up.
-  if (res.status === 401) {
-    const { data: { session: retrySession }, error: retryError } = await supabase.auth.refreshSession();
-    const retryToken = !retryError && retrySession?.access_token ? retrySession.access_token : null;
-    if (retryToken) {
-      res = await callEdge(retryToken);
-    }
-  }
-
-  const json = await res.json();
-  if (!res.ok) {
-    const msg = json.error || `API error ${res.status}`;
+  if (error) {
+    const status = error.status ?? 500;
+    const msg = error.message || `API error ${status}`;
     Sentry.captureException(new Error(msg), {
       tags: { area: 'workoutService', action },
-      extra: { status: res.status, payload },
+      extra: { status, payload, error },
     });
-    if (res.status === 401) {
+    if (status === 401 || /not authenticated|invalid jwt/i.test(msg)) {
       throw new Error('Session expired. Please sign out and sign in again.');
     }
-    if (res.status === 429) {
-      const secs = json.retry_after_seconds ?? 60;
+    if (status === 429 && typeof (error as any).context?.retry_after_seconds === 'number') {
+      const secs = (error as any).context.retry_after_seconds;
       throw new Error(`${msg} Try again in ${secs} seconds.`);
     }
     throw new Error(msg);
   }
-  return json;
+  return data;
 }
 
 export async function generateWorkout(userInput, userId) {

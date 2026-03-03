@@ -212,6 +212,9 @@ Deno.serve(async (req) => {
     if (rl?.limit != null) rateLimitHeaders["X-RateLimit-Limit"] = String(rl.limit);
     if (rl?.remaining != null) rateLimitHeaders["X-RateLimit-Remaining"] = String(rl.remaining);
 
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id ?? null;
+
     let result;
 
     switch (action) {
@@ -304,6 +307,20 @@ Deno.serve(async (req) => {
 
       default:
         throw new Error(`Unhandled action: ${action}`);
+    }
+
+    // Best-effort logging of prompt + response for analysis.
+    if (userId) {
+      try {
+        await supabase.from("claude_logs").insert({
+          user_id: userId,
+          action,
+          request_payload: payload,
+          response_payload: result,
+        });
+      } catch (logErr) {
+        console.error("Failed to log claude request:", logErr);
+      }
     }
 
     return new Response(JSON.stringify(result), {
