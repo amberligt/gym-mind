@@ -28,7 +28,7 @@ If unknown, write "unknown". No extra explanation.`;
 
 const GOAL_OPTIONS = ['Strength', 'Hypertrophy', 'Endurance', 'General fitness'];
 const EXPERIENCE_OPTIONS = ['Beginner', 'Intermediate', 'Advanced'];
-const DAYS_OPTIONS = [2, 3, 4, 5];
+const DAYS_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 const DURATION_OPTIONS = [30, 45, 60, 90];
 
 export default function Onboarding({ onComplete }) {
@@ -283,12 +283,42 @@ export default function Onboarding({ onComplete }) {
       </button>
 
       <h1 className="text-2xl font-semibold text-[#0F172A]">Import Training Profile</h1>
-      <p className="text-[#475569] text-sm mt-1 mb-4">Paste your AI output below. Up to ~{MAX_CHARS} chars.</p>
+      <p className="text-[#475569] text-sm mt-1 mb-4">
+        Use your own AI (ChatGPT, Claude, etc.). Copy the prompt, run it there, then paste the AI&apos;s response below. Up to ~{MAX_CHARS} chars.
+      </p>
 
+      <Card className="p-4 mb-4 border-2 border-dashed border-[#CBD5F5] bg-white/70">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#475569] mb-1">
+              Step 1 &mdash; Copy this prompt to your AI
+            </p>
+            <pre className="whitespace-pre-wrap text-xs text-[#0F172A] bg-[#F1F5F9] rounded-lg p-3 max-h-48 overflow-y-auto">
+              {PROMPT_TEXT}
+            </pre>
+          </div>
+          <SecondaryButton
+            type="button"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(PROMPT_TEXT);
+              } catch {
+                // ignore clipboard errors; user can still select manually
+              }
+            }}
+          >
+            Copy
+          </SecondaryButton>
+        </div>
+      </Card>
+
+      <label className="text-sm font-medium text-[#0F172A] mb-2">
+        Step 2 &mdash; Paste the AI output here
+      </label>
       <textarea
         value={profileText}
         onChange={(e) => setProfileText(e.target.value)}
-        placeholder="Paste the AI output here..."
+        placeholder="Paste the AI output here (no edits, raw text from your AI)..."
         disabled={loading}
         maxLength={MAX_CHARS + 200}
         className="flex-1 min-h-[160px] w-full p-4 bg-white border-2 border-[#E2E8F0] rounded-[20px] text-[#0F172A] placeholder-[#475569]/70 text-base outline-none focus:border-[#3B82F6] resize-none disabled:opacity-50"

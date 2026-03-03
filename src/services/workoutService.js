@@ -22,18 +22,33 @@ async function invokeClaudeEdge(action, payload) {
     throw new Error('Not signed in. Please sign in and try again.');
   }
 
-  // Refresh token if expired (prevents 401 from stale tokens)
-  const { data: { session: freshSession }, error: refreshError } = await supabase.auth.refreshSession({ refresh_token: session.refresh_token });
-  const token = refreshError ? session.access_token : (freshSession?.access_token ?? session.access_token);
+  // Try to refresh the session before calling the edge function.
+  // If refresh fails, fall back to the existing access token.
+  const { data: { session: freshSession }, error: refreshError } = await supabase.auth.refreshSession();
+  const initialToken = refreshError ? session.access_token : (freshSession?.access_token ?? session.access_token);
 
-  const res = await fetch(getEdgeUrl(), {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ action, payload }),
-  });
+  const callEdge = async (token) => {
+    const res = await fetch(getEdgeUrl(), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action, payload }),
+    });
+    return res;
+  };
+
+  let res = await callEdge(initialToken);
+
+  // If we somehow hit a 401, try one more hard refresh + retry before giving up.
+  if (res.status === 401) {
+    const { data: { session: retrySession }, error: retryError } = await supabase.auth.refreshSession();
+    const retryToken = !retryError && retrySession?.access_token ? retrySession.access_token : null;
+    if (retryToken) {
+      res = await callEdge(retryToken);
+    }
+  }
 
   const json = await res.json();
   if (!res.ok) {
