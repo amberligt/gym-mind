@@ -3,6 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_VERSION = '2023-06-01';
 
+// Keep prompts bounded so Claude has room to return full JSON.
+const MAX_HISTORY_ENTRIES = 10;
+const MAX_FREETEXT_CHARS = 1500;
+const MAX_TOKENS_GENERATE = 4096;
+
 const SYSTEM_PROMPT = `You are an expert personal trainer AI that creates structured, periodised workout plans in JSON format.
 
 RULES:
@@ -79,6 +84,12 @@ Return ONLY valid JSON (no markdown, no code fences) with these exact fields:
 training_goal (string), secondary_goal (string or null), experience_level (beginner/intermediate/advanced), experience_years (number or null), strength_numbers (object: push_ups, pull_ups, squat, deadlift, bench_press, overhead_press as strings or null), bodyweight (string or null), injuries (string or null), days_per_week (number or null), session_duration_minutes (number or null), recovery_quality (low/medium/high or null), skill_goals (array of strings or empty array).
 
 If a field says unknown or is missing, set it to null. Be lenient: infer from context when possible.`;
+
+interface ExerciseSet {
+  weight_kg?: number;
+  difficulty?: number;
+  target_reps?: string;
+}
 
 function cors(res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -201,9 +212,12 @@ export default async function handler(req: any, res: any) {
         if (profile && Object.keys(profile).length > 0) {
           systemPrompt += `\n\nUser profile: ${JSON.stringify(profile)}. Use this to personalise exercise selection, weights, and coaching tone.`;
         }
-        let message = userInput;
-        if (history?.length > 0) {
-          const historyBlock = history
+        // Truncate free text to avoid overly long prompts.
+        let message = String(userInput || '').slice(0, MAX_FREETEXT_CHARS);
+
+        const trimmedHistory = Array.isArray(history) ? history.slice(0, MAX_HISTORY_ENTRIES) : [];
+        if (trimmedHistory.length > 0) {
+          const historyBlock = trimmedHistory
             .map((w: { date: string; title: string; exercises: any[] }) => {
               const date = new Date(w.date).toLocaleDateString();
               const exercises = (w.exercises || [])
@@ -238,11 +252,14 @@ export default async function handler(req: any, res: any) {
             .join('\n');
           message += `\n\nMy recent workout history (use this to personalize weight suggestions):\n${historyBlock}`;
         }
-        const text = await callClaude(systemPrompt, message, 2048);
+        const text = await callClaude(systemPrompt, message, MAX_TOKENS_GENERATE);
         // Parse on the server so the frontend doesn't need to interpret raw JSON.
-        const cleaned = cleanJson(text);
-        const parsed = JSON.parse(cleaned);
-        result = { success: true, workout: parsed };
+        try {
+          const parsed = JSON.parse(cleanJson(text));
+          result = { success: true, workout: parsed };
+        } catch {
+          throw new Error('Failed to parse AI workout JSON');
+        }
         break;
       }
 
