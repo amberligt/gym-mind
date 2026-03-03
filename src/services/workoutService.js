@@ -17,28 +17,33 @@ async function invokeClaudeEdge(action, payload) {
     throw new Error('Not signed in. Please sign in and try again.');
   }
 
-  // Use Supabase Functions client so it attaches the correct headers/JWT.
-  const { data, error } = await supabase.functions.invoke('claude-workout', {
-    body: { action, payload },
+  const res = await fetch('/api/claude-workout', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action, payload }),
   });
 
-  if (error) {
-    const status = error.status ?? 500;
-    const msg = error.message || `API error ${status}`;
+  const json = await res.json();
+
+  if (!res.ok) {
+    const msg = json.error || `API error ${res.status}`;
     Sentry.captureException(new Error(msg), {
       tags: { area: 'workoutService', action },
-      extra: { status, payload, error },
+      extra: { status: res.status, payload, response: json },
     });
-    if (status === 401 || /not authenticated|invalid jwt/i.test(msg)) {
+    if (res.status === 401 || /not authenticated|invalid jwt/i.test(msg)) {
       throw new Error('Session expired. Please sign out and sign in again.');
     }
-    if (status === 429 && typeof (error as any).context?.retry_after_seconds === 'number') {
-      const secs = (error as any).context.retry_after_seconds;
+    if (res.status === 429 && typeof json.retry_after_seconds === 'number') {
+      const secs = json.retry_after_seconds;
       throw new Error(`${msg} Try again in ${secs} seconds.`);
     }
     throw new Error(msg);
   }
-  return data;
+  return json;
 }
 
 export async function generateWorkout(userInput, userId) {
