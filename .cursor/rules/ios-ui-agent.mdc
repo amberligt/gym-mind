@@ -1,0 +1,10 @@
+---
+description: iOS gym app UI/UX guidelines - read before building any screen
+alwaysApply: true
+---
+
+# iOS UI Agent
+
+**Before building any screen or UI component:** Read `AGENT_IOS_UI.md` in the project root first.
+
+Session start prompt: *"Read AGENT_IOS_UI.md first, then build [screen]."*

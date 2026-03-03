@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Design tokens — Orange + Blue only */
+  --color-primary-orange: #F97316;
+  --color-primary-orange-strong: #EA580C;
+  --color-primary-blue: #1E3A8A;
+  --color-primary-blue-soft: #3B82F6;
+  --color-background: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+  --color-border: #E2E8F0;
+
+  /* Legacy compat */
+  --color-brand: #F97316;
+  --color-surface-border: #E2E8F0;
+  --color-bg-app: #F8FAFC;
+  --color-text-tertiary: #475569;
+  --color-divider: #E2E8F0;
+}
+
+html, body, #root {
+  height: 100%;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-background);
+}
+
+button {
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+input[inputmode="decimal"] {
+  font-variant-numeric: tabular-nums;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Typography utilities */
+.hero-metric {
+  font-size: 60px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--color-text-primary);
+}
+
+.h1 { font-size: 1.875rem; font-weight: 600; }
+.h2 { font-size: 1.25rem; font-weight: 600; }
+.exercise-title { font-size: 1.125rem; font-weight: 500; }
+.body { font-size: 1rem; }
+.meta { font-size: 0.875rem; color: var(--color-text-secondary); }
+.delta { font-size: 0.875rem; font-weight: 500; color: var(--color-primary-orange); }
+
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0.96; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes stagger-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-stagger-fade {
+  animation: stagger-fade 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-stagger-fade-delay-1 { animation-delay: 60ms; }
+.animate-stagger-fade-delay-2 { animation-delay: 120ms; }
+.animate-stagger-fade-delay-3 { animation-delay: 180ms; }
+.animate-stagger-fade-delay-4 { animation-delay: 240ms; }
+.animate-stagger-fade-delay-5 { animation-delay: 300ms; }
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.animate-skeleton-pulse {
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes content-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-content-fade {
+  animation: content-fade 0.25s ease-out;
+}
+
+@keyframes step-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-step-in {
+  animation: step-in 0.25s ease-out;
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
