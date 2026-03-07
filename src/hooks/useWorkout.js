@@ -1,6 +1,6 @@
 import { useReducer, useCallback } from 'react';
 import { generateWorkout, getExerciseAlternatives, adjustWorkout } from '../services/workoutService';
-import { flattenExercises, getExerciseType } from '../utils/parseWorkout';
+import { flattenExercises, getExerciseType, parseWorkout } from '../utils/parseWorkout';
 
 /** Pure sessionLog shape - serializable, no UI values */
 export const SESSION_LOG_SHAPE = {
@@ -28,6 +28,7 @@ const initialState = {
   setWeights: [],
   supersetWeights: [],
   _currentExerciseSets: [],
+  _currentCardioSets: [],
   startTime: null,
   error: null,
   lastInput: '',
@@ -37,7 +38,7 @@ const initialState = {
 
 function getEffectiveSets(exercise, block) {
   const type = getExerciseType(exercise, block);
-  if (type === 'cardio') return 1;
+  if (type === 'cardio') return exercise.sets ?? block?.rounds ?? 1;
   if (type === 'timed' && !exercise.sets) return 1;
   return exercise.sets || 1;
 }
@@ -75,6 +76,7 @@ function reducer(state, action) {
         setWeights: [],
         supersetWeights: [],
         _currentExerciseSets: [],
+        _currentCardioSets: [],
         startTime,
         analysis: null,
         analysisLoading: false,
@@ -148,9 +150,66 @@ function reducer(state, action) {
       }
 
       const payload = action.payload || {};
+
+      // Cardio: log actual duration and distance (or skipped); support multiple rounds
+      if (exType === 'cardio' && payload.cardio) {
+        const dur = payload.duration_seconds ?? 0;
+        const dist = payload.distance_meters ?? 0;
+        const formatTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+        const formatDist = (m) => m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`;
+        const targetParts = [];
+        if (exercise.duration_seconds) targetParts.push(formatTime(exercise.duration_seconds));
+        if (exercise.distance_meters) targetParts.push(formatDist(exercise.distance_meters));
+        const actualParts = [];
+        if (dur > 0) actualParts.push(formatTime(dur));
+        if (dist > 0) actualParts.push(formatDist(dist));
+        const setEntry = {
+          set_number: state.currentSetIndex,
+          target_reps: targetParts.length ? targetParts.join(' / ') : '—',
+          actual_reps: payload.skipped ? null : (actualParts.length ? actualParts.join(' / ') : '—'),
+          weight_kg: 0,
+          difficulty: null,
+        };
+        const isLastSet = state.currentSetIndex >= effectiveSets;
+        if (!isLastSet) {
+          const accumulated = [...(state._currentCardioSets || []), setEntry];
+          return {
+            ...state,
+            currentSetIndex: state.currentSetIndex + 1,
+            _currentCardioSets: accumulated,
+          };
+        }
+        const allSets = [...(state._currentCardioSets || []), setEntry];
+        const exerciseLog = {
+          name: exercise.name,
+          block: block?.label || block?.name || '',
+          sets: allSets,
+        };
+        const newExercises = [...state.sessionLog.exercises, exerciseLog];
+        const newSessionLog = { ...state.sessionLog, exercises: newExercises };
+        const nextIndex = state.currentExerciseIndex + 1;
+        const isLastExercise = nextIndex >= state.flatExercises.length;
+        if (isLastExercise) {
+          return {
+            ...state,
+            screen: 'complete',
+            workoutStatus: 'complete',
+            sessionLog: newSessionLog,
+            _currentCardioSets: [],
+          };
+        }
+        return {
+          ...state,
+          screen: 'rest',
+          workoutStatus: 'rest',
+          sessionLog: newSessionLog,
+          _nextIndex: nextIndex,
+          _currentCardioSets: [],
+        };
+      }
+
       const weightVal = payload.weight ?? action.weight ?? 0;
       const actualReps = payload.actualReps ?? 0;
-      const difficulty = payload.difficulty ?? null;
       const targetReps = exercise.reps || (exercise.duration_seconds ? `${exercise.duration_seconds}s` : '—');
 
       const setEntry = {
@@ -158,7 +217,7 @@ function reducer(state, action) {
         target_reps: targetReps,
         actual_reps: actualReps,
         weight_kg: Math.round(weightVal * 10) / 10,
-        difficulty,
+        difficulty: null,
       };
       const newExerciseSets = [...(state._currentExerciseSets || []), setEntry];
       const isLastSet = state.currentSetIndex >= effectiveSets;
@@ -171,37 +230,19 @@ function reducer(state, action) {
         };
       }
 
-      const exerciseLog = {
+      // Weight exercise last set: go to difficulty rating screen; sessionLog updated on RATE_EXERCISE/SKIP_RATING
+      const pendingLog = {
         name: exercise.name,
         block: blockName,
         sets: newExerciseSets,
       };
-      const newExercises = [...state.sessionLog.exercises, exerciseLog];
-      const newSessionLog = {
-        ...state.sessionLog,
-        exercises: newExercises,
-      };
-
-      let nextIndex = state.currentExerciseIndex + 1;
-      const isLastExercise = nextIndex >= state.flatExercises.length;
-
-      if (isLastExercise) {
-        return {
-          ...state,
-          screen: 'complete',
-          workoutStatus: 'complete',
-          sessionLog: newSessionLog,
-          _currentExerciseSets: [],
-        };
-      }
-
       return {
         ...state,
-        screen: 'rest',
-        workoutStatus: 'rest',
-        sessionLog: newSessionLog,
+        screen: 'rating',
+        workoutStatus: 'active',
+        pendingLog,
+        pendingSupersetLog: null,
         _currentExerciseSets: [],
-        _nextIndex: nextIndex,
       };
     }
 
@@ -300,6 +341,7 @@ function reducer(state, action) {
         setWeights: [],
         supersetWeights: [],
         _partnerWeights: [],
+        _currentCardioSets: [],
         _nextIndex: null,
       };
     }
@@ -386,6 +428,8 @@ function reducer(state, action) {
 
     case 'BACK_TO_INPUT':
       return { ...state, screen: 'input', error: null };
+    case 'CLEAR_ERROR':
+      return { ...state, error: null };
 
     default:
       return state;
@@ -411,6 +455,16 @@ export function useWorkout(userId) {
       });
     }
   }, [userId]);
+
+  const loadWorkoutFromText = useCallback((rawText) => {
+    const result = parseWorkout(rawText);
+    if (result.success) {
+      dispatch({ type: 'GENERATE_SUCCESS', workout: result.workout });
+      return { success: true };
+    }
+    dispatch({ type: 'GENERATE_ERROR', error: result.error ?? 'Failed to parse workout.' });
+    return { success: false, error: result.error };
+  }, []);
 
   const fetchAlternatives = useCallback(async (exercise, block, workoutGoal) => {
     return getExerciseAlternatives(
@@ -443,6 +497,7 @@ export function useWorkout(userId) {
     state,
     dispatch,
     generate,
+    loadWorkoutFromText,
     fetchAlternatives,
     replaceExercise,
     updateExercise,

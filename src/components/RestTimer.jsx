@@ -1,20 +1,38 @@
 /**
- * Rest state — hero timer, orange progress ring, hold-to-skip.
- * Minimal text. Rotating microcopy.
+ * Rest state — Rest Timer header, recovery subtitle, big seconds countdown, Up next card, Skip rest.
+ * Matches screenshot: clear header, orange progress ring, card with next exercise + prescription.
  */
 import { useState, useEffect, useRef } from 'react';
 
-const MICROCOPY = [
-  'Control your breathing.',
-  'Stay sharp.',
-  'Recover well.',
-  'Next set awaits.',
-];
+function formatNextPrescription(exercise) {
+  if (!exercise) return null;
+  const parts = [];
+  const sets = exercise.sets ?? 1;
+  if (exercise.duration_seconds != null && !exercise.reps) {
+    const m = Math.floor(exercise.duration_seconds / 60);
+    const s = exercise.duration_seconds % 60;
+    parts.push(`${sets} x ${m}:${String(s).padStart(2, '0')}`);
+  } else {
+    parts.push(`${exercise.reps ?? '—'} reps`);
+  }
+  if (exercise.suggested_weight_kg != null && exercise.suggested_weight_kg > 0) {
+    parts.push(`${exercise.suggested_weight_kg} kg`);
+  }
+  return parts.join(' • ');
+}
 
-export default function RestTimer({ seconds, nextExerciseName, currentSet = 1, totalSets = 1, lastSet, nextTarget, onComplete, onSkip }) {
+export default function RestTimer({
+  seconds,
+  lastCompletedExerciseName,
+  lastCompletedSetText,
+  nextExerciseName,
+  nextSetText,
+  nextExercise,
+  onComplete,
+  onSkip,
+}) {
   const endTimeRef = useRef(Date.now() + seconds * 1000);
   const [remaining, setRemaining] = useState(seconds);
-  const [microcopyIndex, setMicrocopyIndex] = useState(0);
 
   useEffect(() => {
     endTimeRef.current = Date.now() + seconds * 1000;
@@ -33,70 +51,70 @@ export default function RestTimer({ seconds, nextExerciseName, currentSet = 1, t
     return () => clearInterval(id);
   }, [seconds, onComplete]);
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      setMicrocopyIndex((i) => (i + 1) % MICROCOPY.length);
-    }, 4000);
-    return () => clearInterval(id);
-  }, []);
-
-  const mins = Math.floor(remaining / 60);
-  const secs = remaining % 60;
-  const display = `${mins}:${String(secs).padStart(2, '0')}`;
-  const progressPercent = ((seconds - remaining) / seconds) * 100;
+  const progressPercent = seconds > 0 ? ((seconds - remaining) / seconds) * 100 : 0;
+  const prescription = formatNextPrescription(nextExercise);
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 min-h-0 overflow-hidden bg-[#F8FAFC]">
-      <p className="text-sm font-medium text-[#475569] uppercase tracking-wider mb-2">
-        Set {currentSet} of {totalSets}
-      </p>
-      <div className="relative w-56 h-56 flex items-center justify-center">
-        <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="45" fill="none" stroke="#E2E8F0" strokeWidth="4" />
-          <circle
-            cx="50"
-            cy="50"
-            r="45"
-            fill="none"
-            stroke="#F97316"
-            strokeWidth="4"
-            strokeLinecap="round"
-            strokeDasharray={`${2 * Math.PI * 45}`}
-            strokeDashoffset={`${2 * Math.PI * 45 * (1 - progressPercent / 100)}`}
-            className="transition-all duration-300"
-          />
-        </svg>
-        <span className="hero-metric font-mono tabular-nums text-[60px]">{display}</span>
-      </div>
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#FAF8F5]">
+      {/* Just completed: exercise name + set completed */}
+      {(lastCompletedExerciseName || lastCompletedSetText) && (
+        <div className="shrink-0 px-6 pt-6 pb-2 text-left">
+          {lastCompletedExerciseName && (
+            <p className="text-lg font-bold text-[#1E293B]">{lastCompletedExerciseName}</p>
+          )}
+          {lastCompletedSetText && (
+            <p className="text-sm text-[#475569] mt-0.5">{lastCompletedSetText}</p>
+          )}
+        </div>
+      )}
 
-      {(lastSet || nextTarget) && (
-        <div className="mt-6 text-center space-y-1">
-          {lastSet && (lastSet.reps != null || lastSet.weight != null) && (
-            <p className="text-sm text-[#475569]">
-              Last set: {lastSet.reps ?? '—'} reps{lastSet.weight != null && lastSet.weight > 0 ? ` @ ${lastSet.weight} kg` : ''}
+      {/* Big REST + countdown */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 min-h-0">
+        <p className="text-[11px] font-semibold uppercase tracking-[1.5px] text-[#64748B] mb-2">REST</p>
+        <div className="relative w-56 h-56 flex items-center justify-center shrink-0">
+          <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="45" fill="none" stroke="#E2E8F0" strokeWidth="4" />
+            <circle
+              cx="50"
+              cy="50"
+              r="45"
+              fill="none"
+              stroke="#F97316"
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeDasharray={2 * Math.PI * 45}
+              strokeDashoffset={2 * Math.PI * 45 * (1 - progressPercent / 100)}
+              className="transition-all duration-300"
+            />
+          </svg>
+          <div className="text-center">
+            <span className="font-mono tabular-nums text-[64px] font-extrabold text-[#1E293B] leading-none">{remaining}</span>
+            <p className="text-base text-[#475569] mt-1">s</p>
+          </div>
+        </div>
+
+        {/* Up next: exercise — Set N of M + prescription */}
+        {nextExerciseName && (
+          <div className="w-full max-w-sm mt-8 rounded-2xl bg-[#F1F5F9]/80 p-4 text-left shadow-sm">
+            <p className="text-xs font-medium text-[#64748B] uppercase tracking-wider">Up next</p>
+            <p className="text-lg font-bold text-[#1E293B] mt-1">
+              {nextExerciseName}
+              {nextSetText && <span className="text-[#475569] font-semibold"> — {nextSetText}</span>}
             </p>
-          )}
-          {nextTarget && (
-            <p className="text-sm font-medium text-[#0F172A]">Next target: {nextTarget}</p>
-          )}
-        </div>
-      )}
+            {prescription && (
+              <p className="text-sm text-[#475569] mt-1">{prescription}</p>
+            )}
+          </div>
+        )}
 
-      {nextExerciseName && (
-        <div className="mt-4 text-center">
-          <p className="text-xs text-[#475569] uppercase tracking-wider">Up next</p>
-          <p className="text-lg font-medium mt-1 text-[#0F172A]">{nextExerciseName}</p>
-        </div>
-      )}
-
-      <p className="text-sm text-[#475569] mt-6">{MICROCOPY[microcopyIndex]}</p>
-
-      <button
-        onClick={onSkip}
-        className="mt-8 min-h-[44px] px-6 rounded-full border-2 border-[#1E3A8A] text-[#1E3A8A] font-medium text-sm"
-      >
-        Skip rest
-      </button>
+        <button
+          type="button"
+          onClick={onSkip}
+          className="mt-8 text-[#475569] font-medium text-base hover:text-[#0F172A] active:opacity-70 min-h-[44px]"
+        >
+          Skip rest
+        </button>
+      </div>
     </div>
   );
 }

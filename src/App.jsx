@@ -1,6 +1,8 @@
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { ProfileProvider, useProfile } from './context/ProfileContext';
+import { useState, useEffect } from 'react';
+import { AuthProvider, useAuth, AuthContext } from './context/AuthContext';
+import { ProfileProvider, useProfile, ProfileContext } from './context/ProfileContext';
 import { WorkoutProvider, useWorkoutContext } from './context/WorkoutContext';
+import { DEMO_WORKOUT } from './data/demoWorkout';
 import Auth from './components/Auth';
 import Onboarding from './components/Onboarding';
 import ProfileView from './components/ProfileView';
@@ -11,12 +13,14 @@ import DifficultyRating from './components/DifficultyRating';
 import RestTimer from './components/RestTimer';
 import WorkoutComplete from './components/WorkoutComplete';
 import History from './components/History';
+import ExerciseTypesIntro from './components/ExerciseTypesIntro';
 
 function AppContent() {
   const {
     state,
     dispatch,
     generate,
+    loadWorkoutFromText,
     fetchAlternatives,
     replaceExercise,
     updateExercise,
@@ -62,8 +66,10 @@ function AppContent() {
       ) : (state.screen === 'input' || state.screen === 'loading') ? (
         <ChatInput
           onGenerate={generate}
+          onLoadWorkoutFromText={loadWorkoutFromText}
           loading={state.screen === 'loading'}
           error={state.error}
+          onClearError={() => dispatch({ type: 'CLEAR_ERROR' })}
           onViewHistory={() => dispatch({ type: 'VIEW_HISTORY' })}
           onViewProfile={() => dispatch({ type: 'VIEW_PROFILE' })}
         />
@@ -125,21 +131,20 @@ function AppContent() {
       {state.screen === 'rest' && (
         <RestTimer
           seconds={restSeconds}
-          nextExerciseName={nextExercise?.name}
-          currentSet={state.currentSetIndex}
-          totalSets={(() => {
-            if (!currentExercise) return 1;
-            if (currentExercise.duration_seconds && !currentExercise.sets) return 1;
-            return currentExercise.sets || 1;
-          })()}
-          lastSet={(() => {
+          lastCompletedExerciseName={(() => {
             const exs = state.sessionLog?.exercises ?? [];
             const last = exs[exs.length - 1];
-            const sets = last?.sets ?? [];
-            const s = sets[sets.length - 1];
-            return s ? { reps: s.actual_reps, weight: s.weight_kg } : null;
+            return last?.name ?? null;
           })()}
-          nextTarget={currentExercise?.reps}
+          lastCompletedSetText={(() => {
+            const exs = state.sessionLog?.exercises ?? [];
+            const last = exs[exs.length - 1];
+            const n = last?.sets?.length ?? 0;
+            return n > 0 ? `Set ${n} of ${n} completed` : null;
+          })()}
+          nextExerciseName={nextExercise?.name}
+          nextSetText={nextExercise ? `Set 1 of ${nextExercise.sets ?? nextExercise._block?.rounds ?? 1}` : null}
+          nextExercise={nextExercise}
           onComplete={() => dispatch({ type: 'REST_COMPLETE' })}
           onSkip={() => dispatch({ type: 'REST_COMPLETE' })}
         />
@@ -191,8 +196,71 @@ function AppInner() {
   );
 }
 
+const EXERCISE_TYPES_SEEN_KEY = 'mygym_has_seen_exercise_types';
+
+function isDemoMode() {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('demo') === '1';
+}
+
+const DEMO_USER = { id: 'demo', email: 'demo@example.com' };
+
+const mockAuthValue = {
+  user: DEMO_USER,
+  loading: false,
+  needsPasswordReset: false,
+  clearPasswordReset: () => {},
+  signInWithPassword: async () => {},
+  signUpWithPassword: async () => {},
+  signInWithMagicLink: async () => {},
+  resetPassword: async () => {},
+  updatePassword: async () => {},
+  signOut: async () => {},
+};
+
+const mockProfileValue = {
+  profile: { profile_json: {} },
+  hasProfile: true,
+  loading: false,
+  refreshProfile: async () => {},
+  resetProfile: async () => {},
+};
+
+function DemoWorkoutSeeder({ children }) {
+  const { state, dispatch } = useWorkoutContext();
+  useEffect(() => {
+    if (state.screen === 'input' && !state.workout) {
+      dispatch({ type: 'GENERATE_SUCCESS', workout: DEMO_WORKOUT });
+    }
+  }, [state.screen, state.workout, dispatch]);
+  return children;
+}
+
+function DemoRoot() {
+  return (
+    <AuthContext.Provider value={mockAuthValue}>
+      <ProfileContext.Provider value={mockProfileValue}>
+        <WorkoutProvider>
+          <DemoWorkoutSeeder>
+            <AppContent />
+          </DemoWorkoutSeeder>
+        </WorkoutProvider>
+      </ProfileContext.Provider>
+    </AuthContext.Provider>
+  );
+}
+
+function useShowExerciseTypesIntro() {
+  const forceShow = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('show_exercise_types') === '1';
+  const [hasSeen, setHasSeen] = useState(() =>
+    forceShow ? false : (typeof localStorage !== 'undefined' && localStorage.getItem(EXERCISE_TYPES_SEEN_KEY) === 'true')
+  );
+  return [forceShow ? false : hasSeen, setHasSeen];
+}
+
 function AppInnerWithProfile() {
   const { hasProfile, loading, refreshProfile } = useProfile();
+  const [hasSeenExerciseTypes, setHasSeenExerciseTypes] = useShowExerciseTypesIntro();
 
   if (loading) {
     return (
@@ -208,6 +276,21 @@ function AppInnerWithProfile() {
     );
   }
 
+  const showExerciseTypesIntro =
+    hasProfile && (new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('show_exercise_types') === '1' || !hasSeenExerciseTypes);
+  if (showExerciseTypesIntro) {
+    return (
+      <ExerciseTypesIntro
+        onBack={() => {
+          try {
+            localStorage.setItem(EXERCISE_TYPES_SEEN_KEY, 'true');
+          } catch (_) {}
+          setHasSeenExerciseTypes(true);
+        }}
+      />
+    );
+  }
+
   return (
     <WorkoutProvider>
       <AppContent />
@@ -216,6 +299,9 @@ function AppInnerWithProfile() {
 }
 
 function App() {
+  if (isDemoMode()) {
+    return <DemoRoot />;
+  }
   return (
     <AuthProvider>
       <AppInner />
