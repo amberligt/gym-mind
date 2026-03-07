@@ -66,6 +66,7 @@ export default function WorkoutPreview({
   workout,
   onStart,
   onRegenerate,
+  onSaveWorkout,
   fetchAlternatives,
   replaceExercise,
   updateExercise,
@@ -74,6 +75,8 @@ export default function WorkoutPreview({
 }) {
   const { user } = useAuth();
   const { delta, streak } = useLastSessionDelta(user?.id, workout);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [replaceFor, setReplaceFor] = useState(null);
   const [alternatives, setAlternatives] = useState([]);
   const [alternativesLoading, setAlternativesLoading] = useState(false);
@@ -212,6 +215,25 @@ export default function WorkoutPreview({
                     <IconRefresh />
                     Regenerate workout
                   </button>
+                  {onSaveWorkout && (
+                    <button
+                      type="button"
+                      disabled={saved || saving}
+                      onClick={async () => {
+                        setSaving(true);
+                        try {
+                          await onSaveWorkout();
+                          setSaved(true);
+                        } finally {
+                          setSaving(false);
+                          setMenuOpen(false);
+                        }
+                      }}
+                      className="w-full text-left px-4 py-3 text-sm font-medium text-[#0F172A] flex items-center gap-2 disabled:opacity-60"
+                    >
+                      {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save workout'}
+                    </button>
+                  )}
                 </div>
               </>
             )}

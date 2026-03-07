@@ -1,5 +1,6 @@
 import { useReducer, useCallback } from 'react';
-import { generateWorkout, getExerciseAlternatives, adjustWorkout } from '../services/workoutService';
+import { generateWorkout, getExerciseAlternatives, adjustWorkout, suggestWeightsForWorkout } from '../services/workoutService';
+import { getWorkoutTemplateById, saveWorkoutTemplate } from '../services/storageService';
 import { flattenExercises, getExerciseType, parseWorkout } from '../utils/parseWorkout';
 
 /** Pure sessionLog shape - serializable, no UI values */
@@ -493,11 +494,44 @@ export function useWorkout(userId) {
     dispatch({ type: 'UPDATE_WORKOUT', workout: updated });
   }, [state.workout]);
 
+  const saveCurrentWorkout = useCallback(async () => {
+    if (!userId || !state.workout) return null;
+    const id = await saveWorkoutTemplate(userId, state.workout.title, state.workout.blocks);
+    return id;
+  }, [userId, state.workout]);
+
+  const loadSavedWorkoutAndSuggestWeights = useCallback(async (templateId) => {
+    if (!userId || !templateId) return;
+    dispatch({ type: 'GENERATE_START', input: 'Saved workout' });
+    try {
+      const template = await getWorkoutTemplateById(userId, templateId);
+      if (!template) {
+        dispatch({ type: 'GENERATE_ERROR', error: 'Saved workout not found' });
+        return;
+      }
+      const workout = {
+        title: template.title,
+        estimated_duration_minutes: template.blocks?.reduce((m, b) => m + (b.duration_minutes || 0), 0) || 45,
+        blocks: template.blocks || [],
+      };
+      const result = await suggestWeightsForWorkout(workout, userId);
+      if (result.success) {
+        dispatch({ type: 'GENERATE_SUCCESS', workout: result.workout });
+      } else {
+        dispatch({ type: 'GENERATE_ERROR', error: result.error || 'Could not suggest weights' });
+      }
+    } catch (err) {
+      dispatch({ type: 'GENERATE_ERROR', error: err.message || 'Failed to load saved workout' });
+    }
+  }, [userId]);
+
   return {
     state,
     dispatch,
     generate,
     loadWorkoutFromText,
+    saveCurrentWorkout,
+    loadSavedWorkoutAndSuggestWeights,
     fetchAlternatives,
     replaceExercise,
     updateExercise,

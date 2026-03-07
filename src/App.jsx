@@ -21,6 +21,8 @@ function AppContent() {
     dispatch,
     generate,
     loadWorkoutFromText,
+    saveCurrentWorkout,
+    loadSavedWorkoutAndSuggestWeights,
     fetchAlternatives,
     replaceExercise,
     updateExercise,
@@ -67,6 +69,7 @@ function AppContent() {
         <ChatInput
           onGenerate={generate}
           onLoadWorkoutFromText={loadWorkoutFromText}
+          onLoadSavedWorkout={loadSavedWorkoutAndSuggestWeights}
           loading={state.screen === 'loading'}
           error={state.error}
           onClearError={() => dispatch({ type: 'CLEAR_ERROR' })}
@@ -80,6 +83,7 @@ function AppContent() {
           workout={state.workout}
           onStart={() => dispatch({ type: 'START_WORKOUT' })}
           onRegenerate={() => generate(state.lastInput)}
+          onSaveWorkout={saveCurrentWorkout}
           fetchAlternatives={fetchAlternatives}
           replaceExercise={replaceExercise}
           updateExercise={updateExercise}

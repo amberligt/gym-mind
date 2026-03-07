@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getWorkouts } from '../services/storageService';
+import { getWorkouts, getSavedWorkoutTemplates } from '../services/storageService';
 import PrimaryButton from './ui/PrimaryButton';
 import SecondaryButton from './ui/SecondaryButton';
 import StreakBadge from './ui/StreakBadge';
@@ -49,14 +49,23 @@ function useStreakAndWeekly(userId) {
   return { streak, weeklySessions, weeklyTarget, lastWorkout: workouts[0] };
 }
 
-export default function ChatInput({ onGenerate, onLoadWorkoutFromText, loading, error, onClearError, onViewHistory, onViewProfile }) {
+export default function ChatInput({ onGenerate, onLoadWorkoutFromText, onLoadSavedWorkout, loading, error, onClearError, onViewHistory, onViewProfile }) {
   const { user, signOut } = useAuth();
   const { streak, weeklySessions, weeklyTarget, lastWorkout } = useStreakAndWeekly(user?.id);
+  const [savedTemplates, setSavedTemplates] = useState([]);
   const [focus, setFocus] = useState('');
   const [duration, setDuration] = useState(60);
   // null = show choice; 'paste' = paste workout; 'generate' = AI generate with type/duration
   const [createMode, setCreateMode] = useState(null);
   const [pasteText, setPasteText] = useState('');
+
+  useEffect(() => {
+    if (!user?.id) {
+      setSavedTemplates([]);
+      return;
+    }
+    getSavedWorkoutTemplates(user.id).then(setSavedTemplates).catch(() => setSavedTemplates([]));
+  }, [user?.id]);
 
   const hasPlan = lastWorkout != null;
 
@@ -186,6 +195,9 @@ export default function ChatInput({ onGenerate, onLoadWorkoutFromText, loading, 
     return (
       <div className="flex-1 flex flex-col min-h-0 bg-[#F8FAFC]">
         <div className="flex-1 flex flex-col justify-center px-6 py-8">
+          {loading && (
+            <p className="text-sm text-[#475569] mb-4">Suggesting weights for your workout…</p>
+          )}
           {createMode === 'choice' && (
             <button
               type="button"
@@ -216,6 +228,27 @@ export default function ChatInput({ onGenerate, onLoadWorkoutFromText, loading, 
               <p className="text-sm text-[#475569] mt-1">Choose type (e.g. Upper body) and duration</p>
             </button>
           </div>
+          {savedTemplates.length > 0 && onLoadSavedWorkout && (
+            <div className="mt-8">
+              <p className="text-sm font-medium text-[#475569] mb-3">Saved workouts (do again, weights suggested for today)</p>
+              <div className="flex flex-col gap-2">
+                {savedTemplates.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => onLoadSavedWorkout(t.id)}
+                    className="w-full text-left rounded-2xl bg-white border-2 border-[#E2E8F0] p-4 shadow-sm hover:border-[#3B82F6] transition-colors disabled:opacity-60"
+                  >
+                    <p className="font-semibold text-[#0F172A]">{t.title || 'Saved workout'}</p>
+                    <p className="text-xs text-[#475569] mt-0.5">
+                      {(t.blocks?.reduce((s, b) => s + (b.exercises?.length || 0), 0) || 0)} exercises
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <NavFooter onViewHistory={onViewHistory} onViewProfile={onViewProfile} signOut={signOut} />
       </div>

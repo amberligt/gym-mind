@@ -85,6 +85,8 @@ training_goal (string), secondary_goal (string or null), experience_level (begin
 
 If a field says unknown or is missing, set it to null. Be lenient: infer from context when possible.`;
 
+const SUGGEST_WEIGHTS_SYSTEM = `You are a personal trainer. The user has a saved workout (same exercises, sets, reps, structure). Your job is to suggest suggested_weight_kg for each exercise based on their profile and recent workout history. Do not change the workout structure, exercise names, sets, reps, duration, or block layout. Only update suggested_weight_kg where it makes sense (strength exercises). Leave null for bodyweight or cardio. Use their history to nudge weights up if they found it easy last time, or keep/decrease if hard. Return the FULL workout JSON in the SAME schema: title, estimated_duration_minutes, blocks (each block with label, name, duration_minutes, type, rounds, rest_between_rounds_seconds, exercises with id, name, superset_with, sets, reps, duration_seconds, distance_meters, suggested_weight_kg, rest_seconds, notes). Respond ONLY with valid JSON. No markdown.`;
+
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
@@ -156,7 +158,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const validActions = ["generate", "analyse", "alternatives", "adjust", "parse_profile"];
+    const validActions = ["generate", "analyse", "alternatives", "adjust", "parse_profile", "suggest_weights"];
     if (!validActions.includes(action)) {
       return new Response(
         JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -302,6 +304,43 @@ Deno.serve(async (req) => {
         const text = await callClaude(PARSE_PROFILE_SYSTEM, rawText, 1024);
         const parsed = JSON.parse(cleanJson(text));
         result = { success: true, profile: parsed };
+        break;
+      }
+
+      case "suggest_weights": {
+        const { workout, profile, history } = payload;
+        if (!workout || !workout.blocks) {
+          throw new Error("Missing workout in payload");
+        }
+        let systemPrompt = SUGGEST_WEIGHTS_SYSTEM;
+        if (profile && Object.keys(profile).length > 0) {
+          systemPrompt += `\n\nUser profile: ${JSON.stringify(profile)}.`;
+        }
+        const MAX_HISTORY_ENTRIES = 10;
+        const trimmedHistory = Array.isArray(history) ? history.slice(0, MAX_HISTORY_ENTRIES) : [];
+        let userContent = JSON.stringify({ workout });
+        if (trimmedHistory.length > 0) {
+          const historyBlock = trimmedHistory
+            .map((w: { date: string; title: string; exercises: { name: string; sets: { weight_kg?: number; target_reps?: string }[]; reps?: string }[] }) => {
+              const date = new Date(w.date).toLocaleDateString();
+              const exercises = (w.exercises || [])
+                .map((ex: { name: string; sets: { weight_kg?: number; target_reps?: string }[]; reps?: string }) => {
+                  const sets = Array.isArray(ex.sets) ? ex.sets : [];
+                  const avgWeight = sets.length > 0
+                    ? (sets.reduce((s: number, set: { weight_kg?: number }) => s + (set.weight_kg || 0), 0) / sets.length).toFixed(1)
+                    : "0";
+                  const reps = sets[0]?.target_reps ?? ex.reps ?? "—";
+                  return `  - ${ex.name}: ${avgWeight}kg × ${sets.length}×${reps}`;
+                })
+                .join("\n");
+              return `${date} — ${w.title}:\n${exercises}`;
+            })
+            .join("\n");
+          userContent += `\n\nRecent workout history (use to suggest weights):\n${historyBlock}`;
+        }
+        const text = await callClaude(systemPrompt, userContent, 4096);
+        const parsed = JSON.parse(cleanJson(text));
+        result = { success: true, workout: parsed };
         break;
       }
 

@@ -128,3 +128,26 @@ export async function adjustWorkout(workout, adjustmentInstruction) {
 
   throw new Error('Invalid workout response');
 }
+
+/**
+ * Same workout structure, AI suggests weights for today (profile + history).
+ * Use when user picks "Do again" on a saved workout.
+ */
+export async function suggestWeightsForWorkout(workout, userId) {
+  const [history, profileRow] = await Promise.all([
+    userId ? getRecentHistory(userId, 5) : [],
+    userId ? fetchProfile(userId) : null,
+  ]);
+  const profile = profileRow?.profile_json ?? null;
+
+  const response = await invokeClaudeEdge('suggest_weights', {
+    workout: { title: workout.title, estimated_duration_minutes: workout.estimated_duration_minutes, blocks: workout.blocks },
+    history,
+    profile,
+  });
+
+  if (response?.workout) {
+    return { success: true, workout: response.workout };
+  }
+  return { success: false, error: 'Could not suggest weights' };
+}

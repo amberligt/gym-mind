@@ -5,7 +5,7 @@
 import { supabase } from '../lib/supabase';
 
 /**
- * Save a workout template. Returns workout id.
+ * Save a workout template (e.g. "Save this workout" from preview). Returns workout id.
  */
 export async function saveWorkoutTemplate(userId, title, blocks) {
   const { data, error } = await supabase
@@ -20,6 +20,35 @@ export async function saveWorkoutTemplate(userId, title, blocks) {
 
   if (error) throw error;
   return data.id;
+}
+
+/**
+ * List saved workout templates for the user (for "Do again" / My saved workouts).
+ */
+export async function getSavedWorkoutTemplates(userId) {
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('workouts')
+    .select('id, title, blocks, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Get one workout template by id (for loading a saved workout).
+ */
+export async function getWorkoutTemplateById(userId, templateId) {
+  if (!userId || !templateId) return null;
+  const { data, error } = await supabase
+    .from('workouts')
+    .select('id, title, blocks')
+    .eq('id', templateId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
 }
 
 /**
