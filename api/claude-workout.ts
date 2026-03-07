@@ -236,14 +236,21 @@ export default async function handler(req: any, res: any) {
                   const rated = sets.filter((s) => s.difficulty != null);
                   const avgRating =
                     rated.length > 0
-                      ? (
-                          rated.reduce(
-                            (sum: number, s: ExerciseSet) => sum + (s.difficulty ?? 0),
-                            0
-                          ) / rated.length
-                        ).toFixed(0)
+                      ? rated.reduce(
+                          (sum: number, s: ExerciseSet) => sum + (s.difficulty ?? 0),
+                          0
+                        ) / rated.length
+                      : null;
+                  // 1=too_light, 2=hard_but_good, 3=too_hard (for next-set adjustment)
+                  const difficultyLabel =
+                    avgRating != null
+                      ? avgRating < 1.5
+                        ? 'too_light'
+                        : avgRating < 2.5
+                          ? 'hard_but_good'
+                          : 'too_hard'
                       : '';
-                  const rating = avgRating ? ` (difficulty: ${avgRating}/5)` : '';
+                  const rating = difficultyLabel ? ` (difficulty: ${difficultyLabel})` : '';
                   return `  - ${ex.name}: ${avgWeight}kg × ${sets.length}×${reps}${rating}`;
                 })
                 .join('\n');

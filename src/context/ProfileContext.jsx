@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { fetchProfile, deleteProfile } from '../services/profileService';
 
-const ProfileContext = createContext(null);
+export const ProfileContext = createContext(null);
 
 export function ProfileProvider({ children }) {
   const { user } = useAuth();
